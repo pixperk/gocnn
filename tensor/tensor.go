@@ -1,6 +1,9 @@
 package tensor
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 type Tensor struct {
 	//data is just a slice represention tensor's data
@@ -13,13 +16,8 @@ type Tensor struct {
 
 // new tensor with some shape
 func New(shape ...int) *Tensor {
-	size := 1
-	for _, s := range shape {
-		size *= s
-	}
-
 	return &Tensor{
-		Data:    make([]float32, size),
+		Data:    make([]float32, numel(shape)),
 		Shape:   append([]int(nil), shape...),
 		Strides: rowMajorStrides(shape),
 	}
@@ -45,6 +43,105 @@ func (t *Tensor) At(idx ...int) float32 {
 // set writes v at idx, one index per dim.
 func (t *Tensor) Set(v float32, idx ...int) {
 	t.Data[t.offset(idx)] = v
+}
+
+// reshape returns a view of the same data with a new shape. no copy.
+// one dim may be -1 and is inferred. panics if t is not contiguous.
+func (t *Tensor) Reshape(shape ...int) *Tensor {
+	if !t.IsContiguous() {
+		panic(fmt.Sprintf("tensor: reshape of non-contiguous tensor, shape %v strides %v",
+			t.Shape, t.Strides))
+	}
+
+	newShape := append([]int(nil), shape...)
+	inferAt := -1 // index of the -1 dim, if any
+	known := 1    // product of all other dims
+	for i, s := range newShape {
+		switch {
+		case s == -1 && inferAt != -1:
+			panic(fmt.Sprintf("tensor: reshape to %v has more than one -1", shape))
+		case s == -1:
+			inferAt = i
+		case s < 1:
+			panic(fmt.Sprintf("tensor: reshape to %v has invalid dim %d", shape, s))
+		default:
+			known *= s
+		}
+	}
+
+	total := numel(t.Shape)
+	if inferAt != -1 {
+		if total%known != 0 {
+			panic(fmt.Sprintf("tensor: cannot reshape %v to %v", t.Shape, shape))
+		}
+		newShape[inferAt] = total / known
+	}
+
+	if numel(newShape) != total {
+		panic(fmt.Sprintf("tensor: cannot reshape %v (%d elements) to %v (%d elements)",
+			t.Shape, total, newShape, numel(newShape)))
+	}
+
+	return &Tensor{
+		Data:    t.Data,
+		Shape:   newShape,
+		Strides: rowMajorStrides(newShape),
+	}
+}
+
+// transpose returns a view with dims a and b swapped. no copy.
+func (t *Tensor) Transpose(a, b int) *Tensor {
+	n := len(t.Shape)
+	if a < 0 || a >= n || b < 0 || b >= n {
+		panic(fmt.Sprintf("tensor: transpose dims %d, %d out of range for shape %v", a, b, t.Shape))
+	}
+
+	shape := slices.Clone(t.Shape)
+	strides := slices.Clone(t.Strides)
+	shape[a], shape[b] = shape[b], shape[a]
+	strides[a], strides[b] = strides[b], strides[a]
+
+	return &Tensor{Data: t.Data, Shape: shape, Strides: strides}
+}
+
+// iscontiguous reports whether data is laid out in row-major order.
+func (t *Tensor) IsContiguous() bool {
+	return slices.Equal(t.Strides, rowMajorStrides(t.Shape))
+}
+
+// contiguous returns t if already row-major, else a row-major copy.
+func (t *Tensor) Contiguous() *Tensor {
+	if t.IsContiguous() {
+		return t
+	}
+
+	out := New(t.Shape...)
+	idx := make([]int, len(t.Shape))
+	off := 0
+	for i := range out.Data {
+		out.Data[i] = t.Data[off]
+
+		// odometer: bump the last dim, carry left when it wraps.
+		for d := len(idx) - 1; d >= 0; d-- {
+			idx[d]++
+			off += t.Strides[d]
+			if idx[d] < t.Shape[d] {
+				break
+			}
+			off -= idx[d] * t.Strides[d]
+			idx[d] = 0
+		}
+	}
+	return out
+}
+
+// numel is the number of elements a shape holds.
+func numel(shape []int) int {
+	n := 1
+	for _, s := range shape {
+		n *= s
+	}
+	return n
 }
 
 // offset maps idx to a position in data: sum of idx[i] * strides[i].

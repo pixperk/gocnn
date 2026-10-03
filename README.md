@@ -53,6 +53,12 @@ go run ./cmd/train -epochs 10 -lr 0.05
 | `-seed` | `1` | Random seed; the same seed gives the same run |
 | `-data` | `data` | Directory holding the `.gz` files |
 
+Watch it learn in the browser, and draw your own digits for it to read:
+
+```sh
+go run ./cmd/demo                      # then open http://localhost:8080
+```
+
 Test:
 
 ```sh
@@ -68,6 +74,7 @@ go test ./...
 | [`optim`](optim) | Stochastic gradient descent |
 | [`dataset`](dataset) | MNIST IDX reader and batching |
 | [`cmd/train`](cmd/train) | The training loop |
+| [`cmd/demo`](cmd/demo) | A live training dashboard with a drawing pad, served from one Go binary |
 
 A few ideas carry most of the weight:
 

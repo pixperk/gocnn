@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gocnn · live training</title>
+<style>
+  :root {
+    --paper: #faf8f2;
+    --sheet: #fffdf8;
+    --ink: #1b1a17;
+    --ink-soft: #4a4740;
+    --muted: #7a756a;
+    --rule: #1b1a17;
+    --rule-soft: #d8d2c4;
+    --rule-faint: #ebe6da;
+    --bar: #cfc8b8;
+    --red: #a51d24;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 17px/1.5 var(--serif);
+    font-variant-numeric: lining-nums tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 40px 40px 36px; }
+
+  header { text-align: center; padding-bottom: 18px; border-bottom: 3px double var(--rule); }
+  header h1 { font: 400 44px/1.05 var(--serif); letter-spacing: 0.01em; }
+  header .subtitle { font-style: italic; color: var(--ink-soft); margin-top: 6px; font-size: 18px; }
+  header .meta { margin-top: 14px; display: flex; justify-content: center; align-items: center; gap: 18px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+  .sc { font-variant: small-caps; letter-spacing: 0.06em; }
+
+
+  button.train {
+    font: 15px var(--serif); font-variant: small-caps; letter-spacing: 0.08em;
+    color: var(--ink); background: transparent; border: 1px solid var(--ink);
+    padding: 6px 22px; cursor: pointer; border-radius: 0;
+    transition: background .15s ease, color .15s ease;
+  }
+  button.train:hover:not(:disabled) { background: var(--ink); color: var(--sheet); }
+  button.train:disabled { color: var(--muted); border-color: var(--rule-soft); cursor: default; }
+  #statusText { font-style: italic; }
+  .running #statusText::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 7px; border-radius: 50%; background: var(--red); vertical-align: middle; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; margin-top: 26px; }
+  section + section { margin-top: 26px; }
+  h2 { font: 400 13px var(--serif); font-variant: small-caps; letter-spacing: 0.12em; text-transform: lowercase; color: var(--muted); margin-bottom: 8px; }
+
+  table.results { width: 100%; border-collapse: collapse; border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+  table.results th { font-weight: 400; font-style: italic; font-size: 14px; color: var(--ink-soft); text-align: left; padding: 7px 10px 6px; border-bottom: 0.75px solid var(--rule); }
+  table.results td { padding: 8px 10px 9px; vertical-align: baseline; }
+  table.results td .v { font-size: 30px; line-height: 1.1; }
+  table.results td.primary .v { font-size: 38px; }
+  table.results td .s { display: block; font-size: 13px; color: var(--muted); font-style: italic; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  .progress { height: 2px; background: var(--rule-faint); margin-top: 10px; }
+  .progress div { height: 100%; width: 0; background: var(--ink); transition: width .25s linear; }
+
+  .figures { display: grid; grid-template-columns: 1.55fr 1fr; gap: 28px; }
+  figure canvas { width: 100%; height: 240px; display: block; }
+  figcaption { font-size: 14px; color: var(--ink-soft); margin-top: 6px; line-height: 1.4; }
+  figcaption b { font-weight: 600; color: var(--ink); }
+
+  .pad { width: 100%; aspect-ratio: 1; background: #fff; border: 1px solid var(--ink); touch-action: none; cursor: crosshair; display: block; }
+  .pad-tools { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
+  .linkish { font: italic 14px var(--serif); color: var(--ink-soft); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule-soft); }
+  .linkish:hover { color: var(--ink); text-decoration-color: var(--ink); }
+  .reading { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 0.75px solid var(--rule-soft); }
+  .reading canvas { width: 56px; height: 56px; image-rendering: pixelated; border: 0.75px solid var(--rule-soft); background: #fff; }
+  .reading .note { font-size: 13px; font-style: italic; color: var(--muted); line-height: 1.3; }
+  .guess { font: 400 46px/1 var(--serif); min-width: 30px; text-align: right; }
+  .guess.empty { color: var(--rule-soft); }
+
+  .bars { display: grid; gap: 3px; margin-top: 12px; }
+  .bar { display: grid; grid-template-columns: 12px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
+  .bar span:last-child { text-align: right; }
+  .track { height: 7px; background: var(--rule-faint); }
+  .fill { height: 100%; width: 0; background: var(--bar); transition: width .18s ease; }
+  .bar.top { color: var(--ink); }
+  .bar.top .fill { background: var(--ink); }
+
+  .samples { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+  .sample { display: grid; justify-items: center; gap: 4px; padding: 10px 6px 8px; }
+  .sample + .sample { border-left: 0.75px solid var(--rule-faint); }
+  .sample canvas { width: 100%; max-width: 64px; aspect-ratio: 1; image-rendering: pixelated; background: #fff; }
+  .sample .pred { font-size: 17px; color: var(--rule-soft); transition: color .3s ease; }
+  .sample.ok .pred { color: var(--ink); }
+  .sample.bad .pred { color: var(--red); font-weight: 600; }
+  .sample.bad canvas { outline: 1.5px solid var(--red); outline-offset: 1px; }
+  .table-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .table-head span { font-size: 14px; font-style: italic; color: var(--ink-soft); }
+
+  footer { margin-top: 28px; padding-top: 10px; border-top: 0.75px solid var(--rule-soft); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 960px) {
+    .page { padding: 24px 16px; }
+    .body { grid-template-columns: 1fr; gap: 28px; }
+    .figures { grid-template-columns: 1fr; }
+    .samples { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    table.results td .v { font-size: 24px; }
+    table.results td.primary .v { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>gocnn</h1>
+    <div class="subtitle">a neural network from scratch in Go</div>
+    <div class="meta">
+      <span id="arch" class="sc">loading</span>
+      <span>·</span>
+      <span id="status"><span id="statusText">idle</span></span>
+      <button class="train" id="train">train</button>
+    </div>
+  </header>
+
+  <div class="body">
+    <main>
+      <section>
+        <table class="results">
+          <thead>
+            <tr><th>Accuracy</th><th>Loss</th><th>Epoch</th><th>Speed</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="primary"><span class="v" id="acc">–</span><span class="s" id="accSub">correct ÷ total</span></td>
+              <td><span class="v" id="loss">–</span><span class="s">−log p(true digit)</span></td>
+              <td><span class="v" id="epoch">–</span><span class="s" id="step">step 0</span></td>
+              <td><span class="v" id="speed">–</span><span class="s">images / s</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="progress"><div id="progress"></div></div>
+      </section>
+
+      <section class="figures">
+        <figure>
+          <canvas id="lossChart"></canvas>
+          <figcaption><b>Fig. 1</b> loss, mean of −log p(true digit) per batch</figcaption>
+        </figure>
+        <figure>
+          <canvas id="accChart"></canvas>
+          <figcaption><b>Fig. 2</b> accuracy %, correct ÷ total</figcaption>
+        </figure>
+      </section>
+    </main>
+
+    <aside>
+      <h2>Draw a digit</h2>
+      <canvas class="pad" id="pad" width="280" height="280"></canvas>
+      <div class="pad-tools">
+        <span>p = softmax(xW + b)</span>
+        <button class="linkish" id="clear">clear</button>
+      </div>
+      <div class="reading">
+        <canvas id="seen" width="28" height="28"></canvas>
+        <div class="note">28 × 28 input</div>
+        <div class="guess empty" id="guess">?</div>
+      </div>
+      <div class="bars" id="bars"></div>
+    </aside>
+  </div>
+
+  <section>
+    <div class="table-head">
+      <h2>Unseen test digits</h2>
+      <span id="sampleScore"></span>
+    </div>
+    <div class="samples" id="samples"></div>
+  </section>
+
+  <footer>
+    <span id="params"></span>
+    <span>standard library only</span>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+let run;
+let samples = [];
+
+function resetRun() {
+  run = { epochs: 0, stepsPerEpoch: 0, raw: [], smooth: [], ema: null, accs: [] };
+  $('acc').textContent = '–';
+  $('accSub').textContent = 'correct ÷ total';
+  $('loss').textContent = '–';
+  $('epoch').textContent = '–';
+  $('step').textContent = 'step 0';
+  $('speed').textContent = '–';
+  $('progress').style.width = '0';
+  setPreds(null);
+  scheduleDraw();
+}
+
+function setRunning(on, done) {
+  $('status').classList.toggle('running', on);
+  $('statusText').textContent = on ? 'training' : done ? 'trained' : 'idle';
+  $('train').disabled = on;
+  $('train').textContent = on ? 'training' : done ? 'train again' : 'train';
+}
+
+// figures
+
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect();
+  const d = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * d) || c.height !== Math.round(r.height * d)) {
+    c.width = Math.round(r.width * d);
+    c.height = Math.round(r.height * d);
+  }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+
+function drawFigure(canvas, series, opts) {
+  const { ctx, w, h } = fitCanvas(canvas);
+  const pad = { l: 38, r: 8, t: 8, b: 30 };
+  const epochs = Math.max(run.epochs, 1);
+  const maxX = Math.max(run.epochs * run.stepsPerEpoch, 1);
+  const X = (x) => pad.l + (x / maxX) * (w - pad.l - pad.r);
+  const Y = (y) => {
+    const c = Math.min(Math.max(y, opts.min), opts.max);
+    return pad.t + (1 - (c - opts.min) / (opts.max - opts.min)) * (h - pad.t - pad.b);
+  };
+  const ink = cssVar('--ink');
+  const soft = cssVar('--ink-soft');
+  const faint = cssVar('--rule-faint');
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = `12px ${cssVar('--serif')}`;
+  ctx.lineWidth = 1;
+
+  // faint guides and y ticks
+  ctx.textAlign = 'right';
+  for (const t of opts.ticks) {
+    const y = Math.round(Y(t)) + 0.5;
+    ctx.strokeStyle = faint;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+    ctx.strokeStyle = ink;
+    ctx.beginPath(); ctx.moveTo(pad.l - 4, y); ctx.lineTo(pad.l, y); ctx.stroke();
+    ctx.fillStyle = soft;
+    ctx.fillText(opts.fmt(t), pad.l - 7, y + 4);
+  }
+
+  // axes
+  ctx.strokeStyle = ink;
+  ctx.beginPath();
+  ctx.moveTo(pad.l + 0.5, pad.t);
+  ctx.lineTo(pad.l + 0.5, h - pad.b + 0.5);
+  ctx.lineTo(w - pad.r, h - pad.b + 0.5);
+  ctx.stroke();
+
+  // x ticks at epoch boundaries
+  ctx.textAlign = 'center';
+  for (let e = 0; e <= epochs; e++) {
+    const x = Math.round(X(e * run.stepsPerEpoch)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, h - pad.b); ctx.lineTo(x, h - pad.b + 4); ctx.stroke();
+    if (run.epochs) { ctx.fillStyle = soft; ctx.fillText(String(e), x, h - pad.b + 16); }
+  }
+  if (run.epochs) {
+    ctx.font = `italic 12px ${cssVar('--serif')}`;
+    ctx.textAlign = 'right';
+    ctx.fillText('epoch', w - pad.r, h - 2);
+  }
+
+  for (const s of series) {
+    if (!s.points.length) continue;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.width ?? 1.5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    s.points.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+    ctx.stroke();
+    if (s.dot) {
+      const [x, y] = s.points[s.points.length - 1];
+      ctx.fillStyle = cssVar('--red');
+      ctx.beginPath(); ctx.arc(X(x), Y(y), 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+let drawQueued = false;
+function scheduleDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => {
+    drawQueued = false;
+    drawFigure($('lossChart'), [
+      { points: run.raw, color: cssVar('--bar'), width: 1 },
+      { points: run.smooth, color: cssVar('--ink'), width: 1.75, dot: true },
+    ], { min: 0, max: 2.5, ticks: [0, 0.5, 1, 1.5, 2, 2.5], fmt: (t) => t.toFixed(1) });
+    drawFigure($('accChart'), [
+      { points: run.accs, color: cssVar('--ink'), width: 1.75, dot: true },
+    ], { min: 0, max: 100, ticks: [0, 25, 50, 75, 100], fmt: (t) => String(t) });
+  });
+}
+window.addEventListener('resize', scheduleDraw);
+
+// samples, drawn as dark ink on white paper
+
+function paintDigit(canvas, pixels) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) {
+    const v = 255 - pixels[i];
+    img.data[i * 4] = v; img.data[i * 4 + 1] = v; img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function buildSamples() {
+  const box = $('samples');
+  box.innerHTML = '';
+  for (const s of samples) {
+    const el = document.createElement('div');
+    el.className = 'sample';
+    const c = document.createElement('canvas');
+    c.width = 28; c.height = 28;
+    paintDigit(c, s.pixels);
+    const p = document.createElement('div');
+    p.className = 'pred';
+    p.textContent = '·';
+    el.append(c, p);
+    box.append(el);
+    s.el = el;
+    s.predEl = p;
+  }
+}
+
+function setPreds(preds) {
+  let right = 0;
+  samples.forEach((s, i) => {
+    if (!s.el) return;
+    const p = preds ? preds[i] : null;
+    s.predEl.textContent = p ?? '·';
+    s.el.classList.toggle('ok', p !== null && p === s.label);
+    s.el.classList.toggle('bad', p !== null && p !== s.label);
+    if (p === s.label) right++;
+  });
+  $('sampleScore').textContent = preds ? `${right} / ${samples.length}` : '';
+}
+
+// live events
+
+function handle(ev) {
+  switch (ev.type) {
+    case 'hello':
+      resetRun();
+      setRunning(ev.running, false);
+      break;
+    case 'start':
+      resetRun();
+      run.epochs = ev.epochs;
+      run.stepsPerEpoch = ev.stepsPerEpoch;
+      setRunning(true, false);
+      break;
+    case 'step':
+      run.raw.push([ev.step, ev.loss]);
+      run.ema = run.ema === null ? ev.loss : 0.85 * run.ema + 0.15 * ev.loss;
+      run.smooth.push([ev.step, run.ema]);
+      $('loss').textContent = run.ema.toFixed(3);
+      $('epoch').textContent = `${ev.epoch} of ${run.epochs}`;
+      $('step').textContent = `step ${ev.step.toLocaleString()}`;
+      $('speed').textContent = Math.round(ev.imagesPerSec).toLocaleString();
+      $('progress').style.width = `${(100 * ev.step) / (run.epochs * run.stepsPerEpoch)}%`;
+      break;
+    case 'eval':
+      run.accs.push([ev.step, ev.acc]);
+      $('acc').textContent = `${ev.acc.toFixed(1)}%`;
+      $('accSub').textContent = `correct ÷ ${ev.step === 0 ? '2,000 (untrained)' : '2,000'}`;
+      setPreds(ev.preds);
+      if (hasInk) predictDrawing();
+      break;
+    case 'epoch':
+      $('acc').textContent = `${ev.acc.toFixed(2)}%`;
+      $('accSub').textContent = 'correct ÷ 10,000';
+      break;
+    case 'done':
+      setRunning(false, true);
+      break;
+  }
+  scheduleDraw();
+}
+
+function connect() {
+  const es = new EventSource('/api/events');
+  es.onmessage = (e) => handle(JSON.parse(e.data));
+}
+
+$('train').addEventListener('click', async () => {
+  $('train').disabled = true;
+  await fetch('/api/train', { method: 'POST' });
+});
+
+// drawing pad: ink on white, inverted to white-on-black for the network
+
+const pad = $('pad');
+const pctx = pad.getContext('2d');
+const seen = $('seen').getContext('2d');
+let drawing = false;
+let hasInk = false;
+let last = null;
+
+function clearPad() {
+  pctx.fillStyle = '#fff';
+  pctx.fillRect(0, 0, pad.width, pad.height);
+  seen.fillStyle = '#fff';
+  seen.fillRect(0, 0, 28, 28);
+  hasInk = false;
+  $('guess').textContent = '?';
+  $('guess').classList.add('empty');
+  setBars(null);
+}
+
+function padPoint(e) {
+  const r = pad.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) * pad.width) / r.width, y: ((e.clientY - r.top) * pad.height) / r.height };
+}
+
+function stroke(from, to) {
+  pctx.strokeStyle = '#1b1a17';
+  pctx.lineWidth = 19;
+  pctx.lineCap = 'round';
+  pctx.lineJoin = 'round';
+  pctx.beginPath();
+  pctx.moveTo(from.x, from.y);
+  pctx.lineTo(to.x, to.y);
+  pctx.stroke();
+}
+
+let lastPredict = 0;
+pad.addEventListener('pointerdown', (e) => {
+  drawing = true;
+  hasInk = true;
+  pad.setPointerCapture(e.pointerId);
+  last = padPoint(e);
+  stroke(last, last);
+});
+pad.addEventListener('pointermove', (e) => {
+  if (!drawing) return;
+  const p = padPoint(e);
+  stroke(last, p);
+  last = p;
+  const now = performance.now();
+  if (now - lastPredict > 80) { lastPredict = now; predictDrawing(); }
+});
+const endStroke = () => { if (drawing) { drawing = false; predictDrawing(); } };
+pad.addEventListener('pointerup', endStroke);
+pad.addEventListener('pointercancel', endStroke);
+$('clear').addEventListener('click', clearPad);
+
+// toMNIST crops the drawing, fits it in a 20x20 box, and centres it by mass in 28x28, like the dataset.
+function toMNIST() {
+  const src = pctx.getImageData(0, 0, pad.width, pad.height).data;
+  let minX = pad.width, minY = pad.height, maxX = -1, maxY = -1;
+  for (let y = 0; y < pad.height; y++) {
+    for (let x = 0; x < pad.width; x++) {
+      if (src[(y * pad.width + x) * 4] < 240) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;
+
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  const scale = 20 / Math.max(w, h);
+
+  const mid = document.createElement('canvas');
+  mid.width = mid.height = 112;
+  const m = mid.getContext('2d');
+  m.fillStyle = '#fff';
+  m.fillRect(0, 0, 112, 112);
+  m.imageSmoothingQuality = 'high';
+  m.drawImage(pad, minX, minY, w, h, (112 - w * scale * 4) / 2, (112 - h * scale * 4) / 2, w * scale * 4, h * scale * 4);
+
+  const small = document.createElement('canvas');
+  small.width = small.height = 28;
+  const s = small.getContext('2d');
+  s.imageSmoothingQuality = 'high';
+  s.drawImage(mid, 0, 0, 28, 28);
+
+  const d = s.getImageData(0, 0, 28, 28).data;
+  let mass = 0, cx = 0, cy = 0;
+  for (let i = 0; i < 784; i++) {
+    const v = 255 - d[i * 4];
+    mass += v; cx += (i % 28) * v; cy += Math.floor(i / 28) * v;
+  }
+  const dx = Math.round(13.5 - cx / mass);
+  const dy = Math.round(13.5 - cy / mass);
+
+  seen.fillStyle = '#fff';
+  seen.fillRect(0, 0, 28, 28);
+  seen.drawImage(small, dx, dy);
+  const out = seen.getImageData(0, 0, 28, 28).data;
+  const pixels = new Array(784);
+  for (let i = 0; i < 784; i++) pixels[i] = (255 - out[i * 4]) / 255;
+  return pixels;
+}
+
+let inflight = false;
+let again = false;
+async function predictDrawing() {
+  if (inflight) { again = true; return; }
+  const pixels = toMNIST();
+  if (!pixels) return;
+  inflight = true;
+  try {
+    const res = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pixels }),
+    });
+    if (res.ok) {
+      const { probs, pred } = await res.json();
+      $('guess').textContent = pred;
+      $('guess').classList.remove('empty');
+      setBars(probs);
+    }
+  } finally {
+    inflight = false;
+    if (again) { again = false; predictDrawing(); }
+  }
+}
+
+function buildBars() {
+  const box = $('bars');
+  for (let d = 0; d < 10; d++) {
+    const row = document.createElement('div');
+    row.className = 'bar';
+    row.innerHTML = `<span>${d}</span><div class="track"><div class="fill"></div></div><span>–</span>`;
+    box.append(row);
+  }
+}
+
+function setBars(probs) {
+  const rows = $('bars').children;
+  const top = probs ? probs.indexOf(Math.max(...probs)) : -1;
+  for (let d = 0; d < 10; d++) {
+    const p = probs ? probs[d] : 0;
+    rows[d].classList.toggle('top', d === top);
+    rows[d].querySelector('.fill').style.width = `${(p * 100).toFixed(1)}%`;
+    rows[d].lastElementChild.textContent = probs ? `${(p * 100).toFixed(1)}%` : '–';
+  }
+}
+
+// boot
+
+async function boot() {
+  buildBars();
+  clearPad();
+  resetRun();
+  const info = await (await fetch('/api/info')).json();
+  $('arch').textContent = info.arch;
+  $('params').textContent = `${info.params.toLocaleString()} parameters`;
+  samples = info.samples;
+  buildSamples();
+  connect();
+}
+boot();
+</script>
+</body>
+</html>

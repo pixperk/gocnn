@@ -11,7 +11,6 @@ import (
 	"github.com/pixperk/gocnn/dataset"
 	"github.com/pixperk/gocnn/nn"
 	"github.com/pixperk/gocnn/optim"
-	"github.com/pixperk/gocnn/tensor"
 )
 
 func main() {
@@ -36,15 +35,12 @@ func main() {
 	}
 
 	r := rand.New(rand.NewPCG(*seed, *seed))
-	model := []nn.Layer{
+	model := nn.NewSequential(
 		nn.NewLinear(784, 128, r),
 		&nn.ReLU{},
 		nn.NewLinear(128, 10, r),
-	}
-	var params []*nn.Param
-	for _, l := range model {
-		params = append(params, l.Params()...)
-	}
+	)
+	params := model.Params()
 	var lossFn nn.SoftmaxCrossEntropy
 	opt := &optim.SGD{LR: float32(*lr)}
 
@@ -60,8 +56,8 @@ func main() {
 		for s := 0; s < len(perm); s += *batchSize {
 			x, y := train.Batch(perm[s:min(s+*batchSize, len(perm))])
 
-			loss := lossFn.Forward(forward(model, x), y)
-			backward(model, lossFn.Backward())
+			loss := lossFn.Forward(model.Forward(x), y)
+			model.Backward(lossFn.Backward())
 			opt.Step(params)
 
 			total += float64(loss)
@@ -76,23 +72,8 @@ func main() {
 	}
 }
 
-// forward runs x through every layer in order.
-func forward(model []nn.Layer, x *tensor.Tensor) *tensor.Tensor {
-	for _, l := range model {
-		x = l.Forward(x)
-	}
-	return x
-}
-
-// backward runs dy through every layer in reverse.
-func backward(model []nn.Layer, dy *tensor.Tensor) {
-	for i := len(model) - 1; i >= 0; i-- {
-		dy = model[i].Backward(dy)
-	}
-}
-
 // accuracy is the percentage of d the model labels correctly.
-func accuracy(model []nn.Layer, d *dataset.Dataset) float64 {
+func accuracy(model nn.Layer, d *dataset.Dataset) float64 {
 	const chunk = 1000
 	correct := 0
 	for s := 0; s < d.Len(); s += chunk {
@@ -101,7 +82,7 @@ func accuracy(model []nn.Layer, d *dataset.Dataset) float64 {
 			idx = append(idx, i)
 		}
 		x, y := d.Batch(idx)
-		for i, p := range forward(model, x).ArgMax(1) {
+		for i, p := range model.Forward(x).ArgMax(1) {
 			if p == y[i] {
 				correct++
 			}

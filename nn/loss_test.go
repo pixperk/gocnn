@@ -138,3 +138,17 @@ func TestLossPanics(t *testing.T) {
 		})
 	}
 }
+
+func TestSoftmaxMatchesLoss(t *testing.T) {
+	logits := from([]float32{1, 2, 3, 1000, 0, -5}, 2, 3)
+	var s SoftmaxCrossEntropy
+	s.Forward(logits, []int{0, 0})
+
+	got := Softmax(logits)
+	for i, p := range s.Probs().Data {
+		if !near(float64(got.Data[i]), float64(p), 1e-6) {
+			t.Errorf("Softmax = %v, want %v", got.Data, s.Probs().Data)
+			break
+		}
+	}
+}

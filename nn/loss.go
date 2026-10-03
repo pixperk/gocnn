@@ -46,6 +46,13 @@ func (s *SoftmaxCrossEntropy) Backward() *tensor.Tensor {
 	return grad
 }
 
+// softmax turns each row of logits (n, classes) into probabilities.
+func Softmax(logits *tensor.Tensor) *tensor.Tensor {
+	shifted := tensor.Sub(logits, logits.Max(1, true))
+	exps := shifted.Apply(func(v float32) float32 { return float32(math.Exp(float64(v))) })
+	return tensor.Div(exps, exps.Sum(1, true))
+}
+
 // probs returns the softmax probabilities from the last forward.
 func (s *SoftmaxCrossEntropy) Probs() *tensor.Tensor {
 	return s.probs

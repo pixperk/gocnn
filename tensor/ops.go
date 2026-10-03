@@ -62,3 +62,23 @@ func expand(t *Tensor, shape []int) *Tensor {
 
 	return &Tensor{Data: t.Data, Shape: slices.Clone(shape), Strides: strides}
 }
+
+// zipWith combines a and b elementwise with f, broadcasting as needed.
+// the result is a fresh contiguous tensor.
+func zipWith(a, b *Tensor, f func(x, y float32) float32) *Tensor {
+	shape := broadcastShapes(a.Shape, b.Shape)
+	ea, eb := expand(a, shape), expand(b, shape)
+
+	out := New(shape...)
+	o := newOdometer(shape, ea, eb)
+	for i := range out.Data {
+		out.Data[i] = f(ea.Data[o.offs[0]], eb.Data[o.offs[1]])
+		o.next()
+	}
+	return out
+}
+
+func Add(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x + y }) }
+func Sub(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x - y }) }
+func Mul(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x * y }) }
+func Div(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x / y }) }

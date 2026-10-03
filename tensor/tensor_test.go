@@ -48,8 +48,6 @@ func TestNewCopiesShape(t *testing.T) {
 }
 
 func TestAt2D(t *testing.T) {
-	// [[1 2 3]
-	//  [4 5 6]]
 	x := New(2, 3)
 	copy(x.Data, []float32{1, 2, 3, 4, 5, 6})
 
@@ -72,8 +70,6 @@ func TestAt2D(t *testing.T) {
 }
 
 func TestAt3D(t *testing.T) {
-	// Shape (2, 3, 4), Data = 0..23, so each element equals its own flat
-	// position. The want values are the row-major offsets.
 	x := New(2, 3, 4)
 	for i := range x.Data {
 		x.Data[i] = float32(i)

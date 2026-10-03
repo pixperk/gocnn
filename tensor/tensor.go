@@ -23,8 +23,7 @@ func New(shape ...int) *Tensor {
 	}
 }
 
-// rowMajorStrides walks the shape right to left: last stride is 1,
-// each earlier one is the next stride times the next dim's size.
+// rowMajorStrides returns the strides of a fresh row-major tensor of shape.
 func rowMajorStrides(shape []int) []int {
 	strides := make([]int, len(shape))
 	step := 1
@@ -45,8 +44,7 @@ func (t *Tensor) Set(v float32, idx ...int) {
 	t.Data[t.offset(idx)] = v
 }
 
-// reshape returns a view of the same data with a new shape. no copy.
-// one dim may be -1 and is inferred. panics if t is not contiguous.
+// reshape returns a view with a new shape; one dim may be -1.
 func (t *Tensor) Reshape(shape ...int) *Tensor {
 	if !t.IsContiguous() {
 		panic(fmt.Sprintf("tensor: reshape of non-contiguous tensor, shape %v strides %v",
@@ -54,8 +52,8 @@ func (t *Tensor) Reshape(shape ...int) *Tensor {
 	}
 
 	newShape := append([]int(nil), shape...)
-	inferAt := -1 // index of the -1 dim, if any
-	known := 1    // product of all other dims
+	inferAt := -1
+	known := 1
 	for i, s := range newShape {
 		switch {
 		case s == -1 && inferAt != -1:
@@ -133,8 +131,7 @@ func numel(shape []int) int {
 	return n
 }
 
-// offset maps idx to a position in data: sum of idx[i] * strides[i].
-// panics on wrong index count or out of range.
+// offset maps idx to a position in data.
 func (t *Tensor) offset(idx []int) int {
 	if len(idx) != len(t.Shape) {
 		panic(fmt.Sprintf("tensor: got %d indices %v for %d-dimensional shape %v",

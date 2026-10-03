@@ -47,8 +47,7 @@ func TestExpandValues(t *testing.T) {
 	}
 }
 
-// expanding an already strided view must keep its existing strides
-// on the dims it does not stretch.
+// expand must keep a view's existing strides on dims it does not stretch.
 func TestExpandOfTranspose(t *testing.T) {
 	x := New(2, 3)
 	copy(x.Data, []float32{1, 2, 3, 4, 5, 6})

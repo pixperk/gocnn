@@ -42,9 +42,6 @@ func TestReshapeKeepsOrder(t *testing.T) {
 	copy(x.Data, []float32{1, 2, 3, 4, 5, 6})
 	y := x.Reshape(3, 2)
 
-	// [[1 2]
-	//  [3 4]
-	//  [5 6]]
 	want := [][]float32{{1, 2}, {3, 4}, {5, 6}}
 	for i := range 3 {
 		for j := range 2 {
@@ -140,8 +137,7 @@ func TestReshapePanics(t *testing.T) {
 	}
 }
 
-// reshape only reinterprets memory, so it must refuse tensors whose
-// logical order differs from their memory order.
+// reshape must refuse tensors whose logical order differs from memory order.
 func TestReshapeNonContiguousPanics(t *testing.T) {
 	tests := []struct {
 		name string

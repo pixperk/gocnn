@@ -135,7 +135,6 @@ func TestContiguousOfTranspose(t *testing.T) {
 		t.Errorf("Data = %v, want %v", y.Data, want)
 	}
 
-	// it is a copy: writing to it leaves x alone.
 	y.Set(99, 0, 0)
 	if x.At(0, 0) != 1 {
 		t.Errorf("x.At(0, 0) = %v after writing to the copy, want 1", x.At(0, 0))
@@ -170,8 +169,7 @@ func TestContiguousOfBroadcast(t *testing.T) {
 	}
 }
 
-// the reason contiguous exists: reshape refuses a transpose, but accepts
-// its contiguous copy.
+// reshape refuses a transpose but accepts its contiguous copy.
 func TestReshapeAfterContiguous(t *testing.T) {
 	x := New(2, 3)
 	copy(x.Data, []float32{1, 2, 3, 4, 5, 6})

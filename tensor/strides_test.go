@@ -24,8 +24,7 @@ func TestNewStrides(t *testing.T) {
 	}
 }
 
-// a hand-built transpose: same data as [[1 2 3] [4 5 6]], but shape and
-// strides swapped. at must follow strides, not recompute them from shape.
+// a hand-built transpose: at must follow strides, not recompute them.
 func TestAtFollowsStrides(t *testing.T) {
 	x := &Tensor{
 		Data:    []float32{1, 2, 3, 4, 5, 6},
@@ -33,9 +32,6 @@ func TestAtFollowsStrides(t *testing.T) {
 		Strides: []int{1, 3},
 	}
 
-	// want [[1 4]
-	//       [2 5]
-	//       [3 6]]
 	want := [][]float32{{1, 4}, {2, 5}, {3, 6}}
 	for i := range 3 {
 		for j := range 2 {
@@ -46,8 +42,7 @@ func TestAtFollowsStrides(t *testing.T) {
 	}
 }
 
-// stride 0 repeats the same memory along a dim: one row of 3 values read
-// as a 4x3 matrix. this is how broadcasting will work later.
+// stride 0 repeats one row of 3 values as a 4x3 matrix.
 func TestAtZeroStride(t *testing.T) {
 	x := &Tensor{
 		Data:    []float32{7, 8, 9},

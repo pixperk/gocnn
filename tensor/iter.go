@@ -5,17 +5,15 @@ import (
 	"slices"
 )
 
-// odometer steps through every index of a shape in row-major order,
-// tracking each tensor's data offset for the current index.
+// odometer walks every index of a shape, tracking each tensor's data offset.
 type odometer struct {
 	shape   []int
 	idx     []int
-	strides [][]int // strides[k] belongs to tensor k
-	offs    []int   // offs[k] is tensor k's data offset at idx
+	strides [][]int
+	offs    []int
 }
 
-// newOdometer starts at index (0, 0, ...). every tensor must already
-// have the given shape; expand them first if they don't.
+// newOdometer starts at index zero; every tensor must already have shape.
 func newOdometer(shape []int, ts ...*Tensor) *odometer {
 	o := &odometer{
 		shape:   shape,

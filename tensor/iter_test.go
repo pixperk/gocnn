@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// walks a normal [3,2] and a broadcast [3,2] together; each keeps its
-// own offset.
+// walks a normal and a broadcast tensor together.
 func TestOdometerTwoTensors(t *testing.T) {
 	a := New(3, 2)
 	b := expand(New(2), []int{3, 2}) // strides [0 1]
@@ -42,8 +41,6 @@ func TestOdometer3DCarry(t *testing.T) {
 	x := New(2, 2, 3)
 	o := newOdometer(x.Shape, x)
 
-	// contiguous: offsets are just 0..11, including the carries
-	// across both inner dims at steps 3, 6, 9.
 	for i := range 12 {
 		if o.offs[0] != i {
 			t.Fatalf("step %d: offset %d, want %d", i, o.offs[0], i)

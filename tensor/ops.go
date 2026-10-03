@@ -5,13 +5,12 @@ import (
 	"slices"
 )
 
-// broadcastShapes returns the shape of a op b under numpy rules:
-// align from the right, each dim pair must be equal or contain a 1.
+// broadcastShapes returns the shape of a op b under numpy rules.
 func broadcastShapes(a, b []int) []int {
 	n := max(len(a), len(b))
 	out := make([]int, n)
 
-	for i := range n { // i counts from the right
+	for i := range n {
 		da := dimFromRight(a, i)
 		db := dimFromRight(b, i)
 
@@ -27,8 +26,7 @@ func broadcastShapes(a, b []int) []int {
 	return out
 }
 
-// dimFromRight returns shape's i-th dim counting from the right,
-// or 1 if shape is too short.
+// dimFromRight returns shape's i-th dim from the right, or 1 if missing.
 func dimFromRight(shape []int, i int) int {
 	if i >= len(shape) {
 		return 1
@@ -36,8 +34,7 @@ func dimFromRight(shape []int, i int) int {
 	return shape[len(shape)-1-i]
 }
 
-// expand returns a view of t stretched to shape. no copy: stretched
-// and padded dims get stride 0, so they reread the same memory.
+// expand returns a view of t stretched to shape using stride 0.
 func expand(t *Tensor, shape []int) *Tensor {
 	if len(t.Shape) > len(shape) {
 		panic(fmt.Sprintf("tensor: cannot expand %v to fewer dims %v", t.Shape, shape))
@@ -45,8 +42,8 @@ func expand(t *Tensor, shape []int) *Tensor {
 
 	strides := make([]int, len(shape))
 	for i := range shape {
-		out := len(shape) - 1 - i   // dim in the result
-		src := len(t.Shape) - 1 - i // matching dim in t, < 0 means padding
+		out := len(shape) - 1 - i
+		src := len(t.Shape) - 1 - i
 
 		switch {
 		case src < 0:
@@ -64,7 +61,6 @@ func expand(t *Tensor, shape []int) *Tensor {
 }
 
 // zipWith combines a and b elementwise with f, broadcasting as needed.
-// the result is a fresh contiguous tensor.
 func zipWith(a, b *Tensor, f func(x, y float32) float32) *Tensor {
 	shape := broadcastShapes(a.Shape, b.Shape)
 	ea, eb := expand(a, shape), expand(b, shape)

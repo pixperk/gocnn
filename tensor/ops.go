@@ -78,3 +78,14 @@ func Add(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32
 func Sub(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x - y }) }
 func Mul(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x * y }) }
 func Div(a, b *Tensor) *Tensor { return zipWith(a, b, func(x, y float32) float32 { return x / y }) }
+
+// apply returns a new tensor with f applied to every element.
+func (t *Tensor) Apply(f func(float32) float32) *Tensor {
+	out := New(t.Shape...)
+	o := newOdometer(t.Shape, t)
+	for i := range out.Data {
+		out.Data[i] = f(t.Data[o.offs[0]])
+		o.next()
+	}
+	return out
+}

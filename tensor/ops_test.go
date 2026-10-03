@@ -139,3 +139,30 @@ func TestElementwisePanicsOnBadShapes(t *testing.T) {
 	}()
 	Add(New(3, 4), New(2, 4))
 }
+
+func TestApply(t *testing.T) {
+	x := from([]float32{-2, 1.5, -0.5, 3}, 2, 2)
+	got := x.Apply(func(v float32) float32 { return v * 10 })
+
+	if !slices.Equal(got.Shape, []int{2, 2}) {
+		t.Fatalf("Shape = %v, want [2 2]", got.Shape)
+	}
+	if want := []float32{-20, 15, -5, 30}; !slices.Equal(got.Data, want) {
+		t.Errorf("Data = %v, want %v", got.Data, want)
+	}
+	if want := []float32{-2, 1.5, -0.5, 3}; !slices.Equal(x.Data, want) {
+		t.Errorf("input changed: %v", x.Data)
+	}
+}
+
+func TestApplyNonContiguous(t *testing.T) {
+	x := from([]float32{1, 2, 3, 4, 5, 6}, 2, 3).Transpose(0, 1) // [[1 4] [2 5] [3 6]]
+	got := x.Apply(func(v float32) float32 { return -v })
+
+	if want := []float32{-1, -4, -2, -5, -3, -6}; !slices.Equal(got.Data, want) {
+		t.Errorf("Data = %v, want %v", got.Data, want)
+	}
+	if !got.IsContiguous() {
+		t.Errorf("result not contiguous: strides %v", got.Strides)
+	}
+}

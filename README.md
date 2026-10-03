@@ -9,20 +9,30 @@ frameworks hide, then make it fast.
 
 ## Status
 
-A two-layer network trains on MNIST and reads handwritten digits:
+A small convolutional network reads handwritten digits at 98.4% accuracy:
 
 ```
-$ go run ./cmd/train
-train 60000, test 10000, before training: test acc 8.42%
-epoch 1  loss 0.3750  test acc 93.64%  (12.88s)
-epoch 2  loss 0.2023  test acc 94.94%  (12.968s)
-epoch 3  loss 0.1512  test acc 96.11%  (12.833s)
-epoch 4  loss 0.1216  test acc 96.58%  (12.846s)
-epoch 5  loss 0.1024  test acc 96.91%  (12.882s)
+$ go run ./cmd/train -model cnn
+cnn: Conv 1→8 · Pool · Conv 8→16 · Pool · Linear 784→10
+train 60000, test 10000, before training: test acc 13.11%
+epoch 1  loss 0.2151  test acc 97.27%  (41.827s)
+epoch 2  loss 0.0799  test acc 98.01%  (42.021s)
+epoch 3  loss 0.0629  test acc 98.29%  (41.791s)
+epoch 4  loss 0.0541  test acc 98.36%  (41.837s)
+epoch 5  loss 0.0488  test acc 98.05%  (42.366s)
 ```
 
-That is `Linear(784→128) → ReLU → Linear(128→10)` with plain SGD, measured on
-the 10,000 test images it never trains on. The convolutional layers are next.
+Accuracy is measured on the 10,000 test images the network never trains on.
+Both models train with plain SGD:
+
+| Model | Layers | Parameters | Best test accuracy (5 epochs) | Time per epoch |
+|---|---|---|---|---|
+| `mlp` | Linear 784→128 · ReLU · Linear 128→10 | 101,770 | 96.91% | 12.9 s |
+| `cnn` | Conv 1→8 · ReLU · Pool · Conv 8→16 · ReLU · Pool · Linear 784→10 | 9,098 | 98.36% | 41.8 s |
+
+The CNN is more accurate with a tenth of the parameters, because each 3×3
+filter is reused at every position in the image. It is also three times
+slower, because convolution is still written as plain nested loops.
 
 ## Run it
 
@@ -41,12 +51,13 @@ done
 Train:
 
 ```sh
-go run ./cmd/train                     # 5 epochs, batch 64, lr 0.1
-go run ./cmd/train -epochs 10 -lr 0.05
+go run ./cmd/train                     # mlp, 5 epochs, batch 64, lr 0.1
+go run ./cmd/train -model cnn          # the convolutional network
 ```
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `-model` | `mlp` | `mlp` or `cnn` |
 | `-epochs` | `5` | Passes over the training set |
 | `-batch` | `64` | Examples per step |
 | `-lr` | `0.1` | Learning rate |
@@ -56,7 +67,7 @@ go run ./cmd/train -epochs 10 -lr 0.05
 Watch it learn in the browser, and draw your own digits for it to read:
 
 ```sh
-go run ./cmd/demo                      # then open http://localhost:8080
+go run ./cmd/demo -model cnn           # then open http://localhost:8080
 ```
 
 Test:
@@ -70,7 +81,8 @@ go test ./...
 | Package | What it does |
 |---|---|
 | [`tensor`](tensor) | N-dimensional `float32` tensors: strided views, reshape, transpose, broadcasting, elementwise ops, reductions, matmul |
-| [`nn`](nn) | The `Layer` interface, `Linear`, `ReLU`, and softmax cross-entropy loss, each with a hand-written backward pass |
+| [`nn`](nn) | The `Layer` interface and layers, each with a hand-written backward pass: `Linear`, `Conv2D`, `MaxPool2D`, `ReLU`, `Flatten`, `Reshape`, plus softmax cross-entropy loss |
+| [`models`](models) | The `mlp` and `cnn` networks, shared by training and the demo |
 | [`optim`](optim) | Stochastic gradient descent |
 | [`dataset`](dataset) | MNIST IDX reader and batching |
 | [`cmd/train`](cmd/train) | The training loop |
@@ -97,11 +109,10 @@ A few ideas carry most of the weight:
 
 - [x] **Tensor engine**: strides, views, broadcasting, reductions, matmul
 - [x] **First network**: Linear, ReLU, softmax cross-entropy, SGD, MNIST training
-- [ ] **Convolutions**: Flatten, MaxPool, Conv2D, then a small CNN that should
-  reach about 99%
+- [x] **Convolutions**: Conv2D, MaxPool2D, Flatten, and a CNN at 98.4%
 - [ ] **Make it fast**: benchmark and profile, then loop reordering,
   goroutines, cache tiling, and im2col convolution, each step measured against
-  the 12.9 s/epoch baseline above
+  the 12.9 s and 41.8 s per-epoch baselines above
 - [ ] **Autograd**: a reverse-mode engine, tested against the hand-written
   backward passes
 - [ ] **Metal backend**: GPU kernels on Apple Silicon behind a backend

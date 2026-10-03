@@ -187,6 +187,7 @@ const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyV
 
 let run;
 let samples = [];
+let liveEval = 1000;
 
 function resetRun() {
   run = { epochs: 0, stepsPerEpoch: 0, raw: [], smooth: [], ema: null, accs: [] };
@@ -377,7 +378,7 @@ function handle(ev) {
     case 'eval':
       run.accs.push([ev.step, ev.acc]);
       $('acc').textContent = `${ev.acc.toFixed(1)}%`;
-      $('accSub').textContent = `correct ÷ ${ev.step === 0 ? '2,000 (untrained)' : '2,000'}`;
+      $('accSub').textContent = `correct ÷ ${liveEval.toLocaleString()}${ev.step === 0 ? ' (untrained)' : ''}`;
       setPreds(ev.preds);
       if (hasInk) predictDrawing();
       break;
@@ -565,6 +566,7 @@ async function boot() {
   resetRun();
   const info = await (await fetch('/api/info')).json();
   $('arch').textContent = info.arch;
+  liveEval = info.liveEval;
   $('params').textContent = `${info.params.toLocaleString()} parameters`;
   samples = info.samples;
   buildSamples();

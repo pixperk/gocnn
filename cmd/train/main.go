@@ -6,9 +6,11 @@ import (
 	"log"
 	"math/rand/v2"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pixperk/gocnn/dataset"
+	"github.com/pixperk/gocnn/models"
 	"github.com/pixperk/gocnn/nn"
 	"github.com/pixperk/gocnn/optim"
 )
@@ -19,6 +21,7 @@ func main() {
 	batchSize := flag.Int("batch", 64, "examples per step")
 	lr := flag.Float64("lr", 0.1, "learning rate")
 	seed := flag.Uint64("seed", 1, "random seed")
+	arch := flag.String("model", "mlp", "model to train: "+strings.Join(models.Names(), ", "))
 	flag.Parse()
 
 	train, err := dataset.Load(
@@ -35,17 +38,16 @@ func main() {
 	}
 
 	r := rand.New(rand.NewPCG(*seed, *seed))
-	model := nn.NewSequential(
-		nn.NewLinear(784, 128, r),
-		&nn.ReLU{},
-		nn.NewLinear(128, 10, r),
-	)
+	model, err := models.Build(*arch, r)
+	if err != nil {
+		log.Fatal(err)
+	}
 	params := model.Params()
 	var lossFn nn.SoftmaxCrossEntropy
 	opt := &optim.SGD{LR: float32(*lr)}
 
-	fmt.Printf("train %d, test %d, before training: test acc %.2f%%\n",
-		train.Len(), test.Len(), accuracy(model, test))
+	fmt.Printf("%s: %s\ntrain %d, test %d, before training: test acc %.2f%%\n",
+		*arch, models.Label(*arch), train.Len(), test.Len(), accuracy(model, test))
 
 	for epoch := 1; epoch <= *epochs; epoch++ {
 		start := time.Now()

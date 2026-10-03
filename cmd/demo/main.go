@@ -15,12 +15,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/pixperk/gocnn/dataset"
+	"github.com/pixperk/gocnn/models"
 	"github.com/pixperk/gocnn/nn"
 	"github.com/pixperk/gocnn/optim"
 	"github.com/pixperk/gocnn/tensor"
@@ -31,7 +33,7 @@ var page []byte
 
 const (
 	numSamples   = 24
-	liveEvalSize = 2000
+	liveEvalSize = 1000
 	evalEvery    = 50
 	stepEvery    = 5
 )
@@ -42,19 +44,6 @@ type config struct {
 	batch  int
 	lr     float64
 	seed   uint64
-}
-
-// architectures maps a model name to its label and constructor.
-var architectures = map[string]struct {
-	label string
-	build func(r *rand.Rand) *nn.Sequential
-}{
-	"mlp": {
-		label: "Linear 784→128 · ReLU · Linear 128→10",
-		build: func(r *rand.Rand) *nn.Sequential {
-			return nn.NewSequential(nn.NewLinear(784, 128, r), &nn.ReLU{}, nn.NewLinear(128, 10, r))
-		},
-	},
 }
 
 type server struct {
@@ -71,16 +60,16 @@ type server struct {
 func main() {
 	addr := flag.String("addr", "localhost:8080", "listen address")
 	dataDir := flag.String("data", "data", "directory holding the mnist .gz files")
-	arch := flag.String("model", "mlp", "model to train")
+	arch := flag.String("model", "mlp", "model to train: "+strings.Join(models.Names(), ", "))
 	epochs := flag.Int("epochs", 3, "passes over the training set")
 	batch := flag.Int("batch", 64, "examples per step")
 	lr := flag.Float64("lr", 0.1, "learning rate")
 	seed := flag.Uint64("seed", 1, "random seed")
 	flag.Parse()
 
-	a, ok := architectures[*arch]
-	if !ok {
-		log.Fatalf("unknown model %q", *arch)
+	model, err := models.Build(*arch, rand.New(rand.NewPCG(*seed, *seed)))
+	if err != nil {
+		log.Fatal(err)
 	}
 	train, err := dataset.Load(
 		filepath.Join(*dataDir, "train-images-idx3-ubyte.gz"),
@@ -104,7 +93,7 @@ func main() {
 		train: train,
 		test:  test,
 		hub:   newHub(),
-		model: a.build(rand.New(rand.NewPCG(*seed, *seed))),
+		model: model,
 	}
 
 	mux := http.NewServeMux()
@@ -162,11 +151,12 @@ func (s *server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	writeJSON(w, map[string]any{
-		"arch":    architectures[s.cfg.arch].label,
-		"params":  params,
-		"train":   s.train.Len(),
-		"test":    s.test.Len(),
-		"samples": samples,
+		"arch":     models.Label(s.cfg.arch),
+		"liveEval": liveEvalSize,
+		"params":   params,
+		"train":    s.train.Len(),
+		"test":     s.test.Len(),
+		"samples":  samples,
 	})
 }
 
@@ -241,7 +231,7 @@ func (s *server) run() {
 	defer s.running.Store(false)
 
 	r := rand.New(rand.NewPCG(s.cfg.seed, s.cfg.seed))
-	model := architectures[s.cfg.arch].build(r)
+	model, _ := models.Build(s.cfg.arch, r)
 	s.mu.Lock()
 	s.model = model
 	s.mu.Unlock()

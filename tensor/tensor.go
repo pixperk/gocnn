@@ -116,21 +116,10 @@ func (t *Tensor) Contiguous() *Tensor {
 	}
 
 	out := New(t.Shape...)
-	idx := make([]int, len(t.Shape))
-	off := 0
+	o := newOdometer(t.Shape, t)
 	for i := range out.Data {
-		out.Data[i] = t.Data[off]
-
-		// odometer: bump the last dim, carry left when it wraps.
-		for d := len(idx) - 1; d >= 0; d-- {
-			idx[d]++
-			off += t.Strides[d]
-			if idx[d] < t.Shape[d] {
-				break
-			}
-			off -= idx[d] * t.Strides[d]
-			idx[d] = 0
-		}
+		out.Data[i] = t.Data[o.offs[0]]
+		o.next()
 	}
 	return out
 }

@@ -1,6 +1,9 @@
 package tensor
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // broadcastShapes returns the shape of a op b under numpy rules:
 // align from the right, each dim pair must be equal or contain a 1.
@@ -31,4 +34,31 @@ func dimFromRight(shape []int, i int) int {
 		return 1
 	}
 	return shape[len(shape)-1-i]
+}
+
+// expand returns a view of t stretched to shape. no copy: stretched
+// and padded dims get stride 0, so they reread the same memory.
+func expand(t *Tensor, shape []int) *Tensor {
+	if len(t.Shape) > len(shape) {
+		panic(fmt.Sprintf("tensor: cannot expand %v to fewer dims %v", t.Shape, shape))
+	}
+
+	strides := make([]int, len(shape))
+	for i := range shape {
+		out := len(shape) - 1 - i   // dim in the result
+		src := len(t.Shape) - 1 - i // matching dim in t, < 0 means padding
+
+		switch {
+		case src < 0:
+			strides[out] = 0
+		case t.Shape[src] == shape[out]:
+			strides[out] = t.Strides[src]
+		case t.Shape[src] == 1:
+			strides[out] = 0
+		default:
+			panic(fmt.Sprintf("tensor: cannot expand %v to %v", t.Shape, shape))
+		}
+	}
+
+	return &Tensor{Data: t.Data, Shape: slices.Clone(shape), Strides: strides}
 }

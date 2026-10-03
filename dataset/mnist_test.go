@@ -111,3 +111,26 @@ func TestLoadRealMNIST(t *testing.T) {
 		t.Errorf("pixel range = [%v, %v], want [0, 1]", lo, hi)
 	}
 }
+
+func TestBatch(t *testing.T) {
+	d, err := Load(tinyFiles(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	x, labels := d.Batch([]int{1, 0, 1})
+
+	if d.Len() != 2 {
+		t.Errorf("Len() = %d, want 2", d.Len())
+	}
+	if !slices.Equal(x.Shape, []int{3, 4}) {
+		t.Fatalf("batch shape = %v, want [3 4]", x.Shape)
+	}
+	want := []float32{1, 0, 0, 1, 0, 1, 0.2, 0.4, 1, 0, 0, 1}
+	if !slices.Equal(x.Data, want) {
+		t.Errorf("batch = %v, want %v", x.Data, want)
+	}
+	if !slices.Equal(labels, []int{3, 7, 3}) {
+		t.Errorf("labels = %v, want [3 7 3]", labels)
+	}
+}

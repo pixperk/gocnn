@@ -82,3 +82,20 @@ func readIDX(path string, magic uint32, headerLen int) ([]uint32, []byte, error)
 	}
 	return header, body, nil
 }
+
+// len returns the number of examples.
+func (d *Dataset) Len() int {
+	return len(d.Labels)
+}
+
+// batch copies the examples at idx into a new (len(idx), 784) tensor and label slice.
+func (d *Dataset) Batch(idx []int) (*tensor.Tensor, []int) {
+	cols := d.Images.Shape[1]
+	x := tensor.New(len(idx), cols)
+	labels := make([]int, len(idx))
+	for b, i := range idx {
+		copy(x.Data[b*cols:(b+1)*cols], d.Images.Data[i*cols:(i+1)*cols])
+		labels[b] = d.Labels[i]
+	}
+	return x, labels
+}

@@ -115,3 +115,79 @@ func TestLinearParams(t *testing.T) {
 func TestLinearIsLayer(t *testing.T) {
 	var _ Layer = NewLinear(1, 1, rand.New(rand.NewPCG(1, 2)))
 }
+
+func TestLinearBackwardByHand(t *testing.T) {
+	l := NewLinear(2, 1, rand.New(rand.NewPCG(1, 2)))
+	copy(l.W.Value.Data, []float32{3, 4})
+	copy(l.B.Value.Data, []float32{5})
+
+	l.Forward(from([]float32{1, 2}, 1, 2))
+	dx := l.Backward(from([]float32{2}, 1, 1))
+
+	if want := []float32{2, 4}; !slices.Equal(l.W.Grad.Data, want) {
+		t.Errorf("dW = %v, want %v", l.W.Grad.Data, want)
+	}
+	if want := []float32{2}; !slices.Equal(l.B.Grad.Data, want) {
+		t.Errorf("db = %v, want %v", l.B.Grad.Data, want)
+	}
+	if want := []float32{6, 8}; !slices.Equal(dx.Data, want) {
+		t.Errorf("dx = %v, want %v", dx.Data, want)
+	}
+}
+
+func TestLinearBackwardShapes(t *testing.T) {
+	l := NewLinear(784, 10, rand.New(rand.NewPCG(1, 2)))
+	l.Forward(tensor.New(32, 784))
+	dx := l.Backward(tensor.New(32, 10))
+
+	if !slices.Equal(dx.Shape, []int{32, 784}) {
+		t.Errorf("dx shape = %v, want [32 784]", dx.Shape)
+	}
+	if !slices.Equal(l.W.Grad.Shape, []int{784, 10}) {
+		t.Errorf("dW shape = %v, want [784 10]", l.W.Grad.Shape)
+	}
+	if !slices.Equal(l.B.Grad.Shape, []int{10}) {
+		t.Errorf("db shape = %v, want [10]", l.B.Grad.Shape)
+	}
+}
+
+// the batch's blame on a weight adds up across images.
+func TestLinearBackwardSumsOverBatch(t *testing.T) {
+	l := NewLinear(1, 1, rand.New(rand.NewPCG(1, 2)))
+	l.Forward(from([]float32{1, 2, 3}, 3, 1))
+	l.Backward(from([]float32{1, 1, 1}, 3, 1))
+
+	if got := l.W.Grad.Data[0]; got != 6 {
+		t.Errorf("dW = %v, want 1+2+3 = 6", got)
+	}
+	if got := l.B.Grad.Data[0]; got != 3 {
+		t.Errorf("db = %v, want 1+1+1 = 3", got)
+	}
+}
+
+func TestLinearBackwardAccumulates(t *testing.T) {
+	l := NewLinear(2, 1, rand.New(rand.NewPCG(1, 2)))
+	copy(l.W.Value.Data, []float32{3, 4})
+	x, dy := from([]float32{1, 2}, 1, 2), from([]float32{2}, 1, 1)
+
+	l.Forward(x)
+	l.Backward(dy)
+	l.Backward(dy)
+
+	if want := []float32{4, 8}; !slices.Equal(l.W.Grad.Data, want) {
+		t.Errorf("dW after two backwards = %v, want %v (grads must add up)", l.W.Grad.Data, want)
+	}
+	if want := []float32{4}; !slices.Equal(l.B.Grad.Data, want) {
+		t.Errorf("db after two backwards = %v, want %v", l.B.Grad.Data, want)
+	}
+}
+
+func TestLinearGradCheck(t *testing.T) {
+	r := rand.New(rand.NewPCG(3, 4))
+	l := NewLinear(6, 4, r)
+	x := tensor.New(5, 6)
+	for i := range x.Data {
+		x.Data[i] = r.Float32()*2 - 1
+	}
+	gradCheck(t, l, x, r)
+}

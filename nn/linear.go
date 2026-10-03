@@ -30,7 +30,13 @@ func (l *Linear) Forward(x *tensor.Tensor) *tensor.Tensor {
 }
 
 func (l *Linear) Backward(dy *tensor.Tensor) *tensor.Tensor {
-	panic("todo")
+	dW := tensor.MatMul(l.x.Transpose(0, 1), dy)
+	db := dy.Sum(0, false)
+	dx := tensor.MatMul(dy, l.W.Value.Transpose(0, 1))
+	//paraam update
+	l.W.Grad = tensor.Add(l.W.Grad, dW)
+	l.B.Grad = tensor.Add(l.B.Grad, db)
+	return dx
 }
 
 // params returns w and b.
